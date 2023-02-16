@@ -82,7 +82,7 @@ typedef struct __attribute__((packed))RTD_LSB_Register_s
 		struct
 		{
 			uint8_t Fault : 1;
-			uint8_t LDB: 7;
+			uint8_t LSB: 7;
 		};
 	};
 
@@ -97,7 +97,7 @@ typedef struct __attribute__((packed)) xFT_LSB_Register_s
 		struct
 		{
 			uint8_t DontCare : 1;
-			uint8_t LDB: 7;
+			uint8_t LSB: 7;
 		};
 	};
 
@@ -123,11 +123,13 @@ typedef struct __attribute__((packed)) Fault_Status_Register_s
 
 }Fault_Status_Register_ts;
 
+#define MAX31865_REG_COUNG 8
+
 typedef struct __attribute__((packed)) Max31865_registers_s
 {
 	union
 	{
-		uint8_t asU8Array[8];
+		uint8_t asU8Array[MAX31865_REG_COUNG];
 		struct
 		{
 			Configuration_Register_ts Configuration;
