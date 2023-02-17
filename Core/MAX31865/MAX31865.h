@@ -28,10 +28,10 @@ typedef struct MAX31865_handler_s * MAX31865_handler;
 
 typedef struct PT100x_Parameters_s
 {
-	double R0;
-	double A;
-	double B;
-	//double C;		//TODO negative Temperature
+	float R0;
+	float A;
+	float B;
+	//float C;		//TODO negative Temperature
 
 }PT100x_Parameters_ts;
 
@@ -43,7 +43,11 @@ typedef struct MAX31865_Init_s
 	uint16_t	   CS_GPIO_PIn;
 
 	PT100x_Parameters_ts PT100x_Parameters;
-	double	R_Ref;
+	float	R_Ref;
+
+	//set to nan to disable
+	float HighTempthreshold;
+	float LowTempthreshold;
 
 }MAX31865_Init_ts;
 
@@ -53,7 +57,7 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf);
 bool MAX31865_Init(MAX31865_handler Max31865_handler,const Configuration_Register_ts *Configuration_Register);
 
 //took
-double MAX31865_GetTemperatureSingleShot(MAX31865_handler Max31865_handler);
+float MAX31865_GetTemperatureSingleShot(MAX31865_handler Max31865_handler);
 
 
 

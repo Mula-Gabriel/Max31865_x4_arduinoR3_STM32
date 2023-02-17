@@ -92,6 +92,28 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
+
+
+
+  MAX31865_Init_ts MAX31865_Init_struct =
+  {
+			.Handler_Spi = &hspi1,
+			.CS_GPIOPort = CS1_GPIO_Port,
+			.CS_GPIO_PIn = CS1_Pin,
+			.PT100x_Parameters = {	.R0 = 100.0, .A= A_IEC751 , .B = B_IEC751} ,
+			.R_Ref = 400.0,
+			.HighTempthreshold = 25,
+			.LowTempthreshold = -10,
+  };
+
+  MAX31865_handler MAX31865_1 = MAX31865_Create( &MAX31865_Init_struct );
+
+  MAX31865_Init_struct.CS_GPIOPort = CS2_GPIO_Port;
+  MAX31865_Init_struct.CS_GPIO_PIn = CS2_Pin;
+
+  MAX31865_handler MAX31865_2 = MAX31865_Create( &MAX31865_Init_struct );
+
+
   Configuration_Register_ts MaxConf =
   {
 	  .RTD_3Wire = 1,
@@ -104,18 +126,11 @@ int main(void)
 
 
 
-  MAX31865_Init_ts MAX31865_Init_struct =
-  {
-			.Handler_Spi = &hspi1,
-			.CS_GPIOPort = CS1_GPIO_Port,
-			.CS_GPIO_PIn = CS1_Pin,
-
-			.PT100x_Parameters = {	.R0 = 100.0, .A= A_IEC751 , .B = B_IEC751} ,
-			.R_Ref = 400.0,
-  };
-
-  MAX31865_handler MAX31865_1 = MAX31865_Create( &MAX31865_Init_struct );
   MAX31865_Init(MAX31865_1,&MaxConf);
+  MAX31865_Init(MAX31865_2,&MaxConf);
+
+
+
 
   /* USER CODE END 2 */
 
@@ -128,9 +143,10 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  float t[4] = {0};
 	  t[0] = MAX31865_GetTemperatureSingleShot(MAX31865_1);
+	  t[1] = MAX31865_GetTemperatureSingleShot(MAX31865_2);
 	  printf("%f %f %f %f\n", t[0],t[1],t[2],t[3]);
 
-	  HAL_Delay(100);
+	  //HAL_Delay(100);
 
   }
   /* USER CODE END 3 */
@@ -185,7 +201,8 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
  int __io_putchar(int ch)
 {
-	 HAL_UART_Transmit(&huart2,&ch,1,100);
+	 HAL_UART_Transmit(&huart2,(const uint8_t*) &ch,1,100);
+	 return 1;
 }
 /* USER CODE END 4 */
 

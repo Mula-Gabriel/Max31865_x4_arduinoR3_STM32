@@ -18,15 +18,18 @@ typedef struct MAX31865_handler_s
 
 	PT100x_Parameters_ts PT100x_Parameters;
 
-	double MesureResistance;
-	double Temperature;
+	float MesureResistance;
+	float Temperature;
 	bool FaultFlag;
-	double R_Ref;
+	float R_Ref;
 	uint16_t ADC_Value;
+
+	float HighTempthreshold;
+	float LowTempthreshold;
 }MAX31865_handler_ts;
 
 
-static double ConvertADCToDegreeCelcius(const PT100x_Parameters_ts * p, double RRef, uint16_t ADCValue );
+static float ConvertADCToDegreeCelcius(const PT100x_Parameters_ts * p, float RRef, uint16_t ADCValue );
 static void _ReadRegisters(MAX31865_handler h, uint8_t RegAddr, uint8_t num);
 static void _WriteRegisters(MAX31865_handler h, uint8_t RegAddr, uint8_t num);
 
@@ -45,6 +48,10 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 			handler->CS_GPIO_PIn = MAX31865_conf->CS_GPIO_PIn;
 			handler->PT100x_Parameters = MAX31865_conf->PT100x_Parameters;
 			handler->R_Ref = MAX31865_conf->R_Ref;
+
+			handler->HighTempthreshold = MAX31865_conf->HighTempthreshold;
+			handler->LowTempthreshold = MAX31865_conf->LowTempthreshold;
+
 		}
 	}
 
@@ -53,10 +60,10 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 }
 //
 //Callendar-Van Dusen (CVD)
- double ConvertADCToDegreeCelcius(const PT100x_Parameters_ts * p, double RRef, uint16_t ADCValue )
+ float ConvertADCToDegreeCelcius(const PT100x_Parameters_ts * p, float RRef, uint16_t ADCValue )
 {
 	//RRTD = (ADC Code x RREF)/2E15
-	double RRTD = ( ADCValue * RRef ) / ((double)0x7FFF);
+	float RRTD = ( ADCValue * RRef ) / ((float)0x7FFF);
 
 	if( RRTD >= p->R0 )
 	{
@@ -68,20 +75,57 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 	}
 }
 
+ int16_t ConvertDegreeCelciusToAdc( float Degree )
+{
+	 return ( ((int16_t)(Degree + 256)*32)) & 0x7FFF;	//15 bits maximum
+}
+
  bool MAX31865_Init(MAX31865_handler h,const Configuration_Register_ts *Configuration_Register)
 {
 	HAL_GPIO_WritePin(h->CS_GPIOPort, h->CS_GPIO_PIn, GPIO_PIN_RESET);
-
 	h->Max31865_registers.Configuration = *Configuration_Register;
-	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
 
+	if(isnan(h->LowTempthreshold) == false)
+	{
+		int16_t ADCCode = ConvertDegreeCelciusToAdc(h->LowTempthreshold);
+		h->Max31865_registers.LFT_LSB_Register.LSB = ADCCode & 0x7F;
+	    h->Max31865_registers.LFT_MSB_Register = ADCCode >> 7;
+	}
+
+	if(isnan(h->HighTempthreshold) == false)
+	{
+		int16_t ADCCode = ConvertDegreeCelciusToAdc(h->HighTempthreshold);
+		h->Max31865_registers.HFT_LSB_Register.LSB = ADCCode & 0x7F;
+	    h->Max31865_registers.HFT_MSB_Register = ADCCode >> 7;
+	}
+
+	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNG);
 
 	return false;
 }
 //
 
-double MAX31865_GetTemperatureSingleShot(MAX31865_handler h)
+float MAX31865_GetTemperatureSingleShot(MAX31865_handler h)
+{
+	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNG);
+	h->Max31865_registers.Configuration.OneShot = 1;
+	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
+
+	uint32_t Delayms = h->Max31865_registers.Configuration.Filter_Select == 0 ? 55 : 66;
+	HAL_Delay(Delayms);
+
+	_ReadRegisters(h, MAX31865_RTD_MSB, 2);
+	h->ADC_Value = h->Max31865_registers.RTD_MSB << 7 | h->Max31865_registers.RTD_LSB.LSB;
+	h->FaultFlag = h->Max31865_registers.RTD_LSB.Fault;
+
+	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value);
+
+
+	return h->Temperature;
+}
+
+float MAX31865_ClearError(MAX31865_handler h)
 {
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNG);
 	h->Max31865_registers.Configuration.OneShot = 1;
