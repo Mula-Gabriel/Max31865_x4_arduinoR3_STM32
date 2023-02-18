@@ -27,6 +27,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "MAX31865.h"
+#include "Shield_4_MAX31865.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,7 +59,13 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void Shield_NewData(Shield_4_MAX31865_Handler h,uint8_t Channel,float Temp,bool fault, Fault_Status_Register_ts Fault_Status_Register);
 
+
+void Shield_NewData(Shield_4_MAX31865_Handler h,uint8_t Channel,float Temp,bool fault, Fault_Status_Register_ts Fault_Status_Register)
+{
+	printf("Ch%d=%.1f (Fault=%d  %d) \r\n",Channel,Temp,fault,Fault_Status_Register.asU8);
+}
 /* USER CODE END 0 */
 
 /**
@@ -90,38 +98,8 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_SPI1_Init();
+
   /* USER CODE BEGIN 2 */
-
-
-
-
-  MAX31865_Init_ts MAX31865_Init_struct =
-  {
-	.Handler_Spi = &hspi1,
-	.CS_GPIOPort = CS1_GPIO_Port,
-	.CS_GPIO_PIn = CS1_Pin,
-	.PT100x_Parameters = {	.R0 = 100.0, .A= A_IEC751 , .B = B_IEC751} ,
-	.R_Ref = 400.0,
-	.HighTempthreshold = 30,
-	.LowTempthreshold = -10,
-  };
-
-  MAX31865_handler MAX31865[4];
-
-  MAX31865[0] = MAX31865_Create( &MAX31865_Init_struct );
-
-  MAX31865_Init_struct.CS_GPIOPort = CS2_GPIO_Port;
-  MAX31865_Init_struct.CS_GPIO_PIn = CS2_Pin;
-  MAX31865[1]= MAX31865_Create( &MAX31865_Init_struct );
-
-  MAX31865_Init_struct.CS_GPIOPort = CS3_GPIO_Port;
-  MAX31865_Init_struct.CS_GPIO_PIn = CS3_Pin;
-  MAX31865[2] = MAX31865_Create( &MAX31865_Init_struct );
-
-  MAX31865_Init_struct.CS_GPIOPort = CS4_GPIO_Port;
-  MAX31865_Init_struct.CS_GPIO_PIn = CS4_Pin;
-  MAX31865[3] = MAX31865_Create( &MAX31865_Init_struct );
-
   Configuration_Register_ts MaxConf =
   {
 	  .RTD_3Wire = 1,
@@ -132,13 +110,28 @@ int main(void)
 	  .Vbias = 1,
   };
 
-
-  for(uint8_t i = 0; i < 4; i++)
+  Configuration_Register_ts MaxConfArray[4] = {MaxConf,MaxConf,MaxConf,MaxConf};
+  MAX31865_Init_ts MAX31865_Init_struct =
   {
-	  MAX31865_Init(MAX31865[i],&MaxConf);
-	  MAX31865_AutomaticConversionMode(MAX31865[i],true);
-  }
+	.Handler_Spi = &hspi1,
+	.PT100x_Parameters = {	.R0 = 100.0, .A= A_IEC751 , .B = B_IEC751} ,
+	.R_Ref = 400.0,
+	.HighTempthreshold = 120,
+	.LowTempthreshold = -10,
+  };
 
+  MAX31865_handler MAX31865Array[4];
+  MAX31865Array[0] = MAX31865_Create( &MAX31865_Init_struct ,CS1_GPIO_Port,CS1_Pin );
+  MAX31865Array[1] = MAX31865_Create( &MAX31865_Init_struct ,CS2_GPIO_Port,CS2_Pin );
+  MAX31865Array[2] = MAX31865_Create( &MAX31865_Init_struct ,CS3_GPIO_Port,CS3_Pin );
+  MAX31865Array[3] = MAX31865_Create( &MAX31865_Init_struct ,CS4_GPIO_Port,CS4_Pin );
+
+  Shield_4_MAX31865_Handler Shield_Handler = Shield_4_MAX31865_Create(MAX31865Array ,MaxConfArray);
+  Shield_4_MAX31865_Init(Shield_Handler,Shield_NewData);
+  Shield_4_MAX31865_DisableChannel(Shield_Handler ,2);
+  Shield_4_MAX31865_DisableChannel(Shield_Handler ,3);
+  Shield_4_MAX31865_DisableChannel(Shield_Handler ,4);
+  Shield_4_MAX31865_SetFilterCoef(Shield_Handler ,1,0.5);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,35 +141,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  float t[4] = {0};
-	  bool Fault[4] = {false};
-
-	  for(uint8_t i = 0; i < 4; i++)
+	  Shield_4_MAX31865_Update(Shield_Handler);
+	  if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET )
 	  {
-		  t[i] = MAX31865_GetTemperatureAuto(MAX31865[i],&Fault[i]);
-		  printf("Ch%d=%.1f (Fault=%d) ",i+1,t[i],Fault[i]);
-
-		  if(Fault[i] == true)
-		  {
-			  Fault_Status_Register_ts Fsr = MAX31865_DoFaultDetectionCycle(MAX31865[i]);
-
-			  printf("VoltageFault=%d RTDinInfVbias=%d REFINInf085Vbias=%d REFINSup085Vbia=%d RTD_LowThreshold=%d RTD_HighThreshold=%d",
-					  Fsr.VoltageFault,Fsr.RTDinInfVbias,Fsr.REFINInf085Vbias,Fsr.REFINSup085Vbias,Fsr.RTD_LowThreshold,Fsr.RTD_HighThreshold);
-
-			  //Press button to clear error
-			  if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET )
-			  {
-				  MAX31865_ClearFault(MAX31865[i]);
-			  }
-		  }
-
-		  printf("\n");
+		  Shield_4_MAX31865_ClearError(Shield_Handler ,1);
+		  Shield_4_MAX31865_ClearError(Shield_Handler ,2);
+		  Shield_4_MAX31865_ClearError(Shield_Handler ,3);
+		  Shield_4_MAX31865_ClearError(Shield_Handler ,4);
 	  }
+	  HAL_Delay(25);
 
-	  HAL_Delay(100);
 
-
-	  printf("\r\n");
+	//  printf("\r\n");
 
   }
   /* USER CODE END 3 */
@@ -215,8 +191,7 @@ void SystemClock_Config(void)
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;

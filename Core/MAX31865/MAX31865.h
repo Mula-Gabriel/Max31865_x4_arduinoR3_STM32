@@ -39,9 +39,6 @@ typedef struct MAX31865_Init_s
 {
 	SPI_HandleTypeDef * Handler_Spi;
 
-	GPIO_TypeDef * CS_GPIOPort;
-	uint16_t	   CS_GPIO_PIn;
-
 	PT100x_Parameters_ts PT100x_Parameters;
 	float	R_Ref;
 
@@ -52,13 +49,13 @@ typedef struct MAX31865_Init_s
 }MAX31865_Init_ts;
 
 
-MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf);
+MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf, GPIO_TypeDef * CS_GPIOPort, uint16_t CS_GPIO_PIn);
 
-bool MAX31865_Init(MAX31865_handler Max31865_handler,const Configuration_Register_ts *Configuration_Register);
-
+void MAX31865_Init(MAX31865_handler Max31865_handler,const Configuration_Register_ts *Configuration_Register);
+void MAX31865_Disable(MAX31865_handler Max31865_handler);
 //took
-float MAX31865_GetTemperatureSingleShot(MAX31865_handler Max31865_handler,bool *FaultFlag);
-float MAX31865_GetTemperatureAuto(MAX31865_handler Max31865_handler,bool *FaultFlag);
+float MAX31865_ReadTemperatureSingleShot(MAX31865_handler Max31865_handler,bool *FaultFlag);
+float MAX31865_ReadTemperatureAuto(MAX31865_handler Max31865_handler,bool *FaultFlag);
 void MAX31865_ClearFault(MAX31865_handler Max31865_handler);
 void MAX31865_AutomaticConversionMode(MAX31865_handler Max31865_handler, bool Enable);
 Fault_Status_Register_ts MAX31865_DoFaultDetectionCycle(MAX31865_handler Max31865_handler);

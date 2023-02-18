@@ -19,8 +19,6 @@ typedef struct MAX31865_handler_s
 	PT100x_Parameters_ts PT100x_Parameters;
 
 	float MesureResistance;
-	float Temperature;
-	bool FaultFlag;
 	float R_Ref;
 	uint16_t ADC_Value;
 
@@ -33,10 +31,10 @@ static float ConvertADCToDegreeCelcius(const PT100x_Parameters_ts * p, float RRe
 static void _ReadRegisters(MAX31865_handler h, uint8_t RegAddr, uint8_t num);
 static void _WriteRegisters(MAX31865_handler h, uint8_t RegAddr, uint8_t num);
 
-MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
+MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf ,GPIO_TypeDef * CS_GPIOPort ,uint16_t CS_GPIO_PIn)
 {
 	MAX31865_handler handler = NULL;
-	if(MAX31865_conf != NULL && MAX31865_conf->Handler_Spi != NULL && MAX31865_conf->CS_GPIOPort != NULL)
+	if(MAX31865_conf != NULL && MAX31865_conf->Handler_Spi != NULL)
 	{
 		handler = malloc( sizeof(MAX31865_handler_ts) );
 
@@ -44,8 +42,8 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 		{
 			memset(handler,0,sizeof(MAX31865_handler_ts));
 			handler->Handler_Spi = MAX31865_conf->Handler_Spi;
-			handler->CS_GPIOPort = MAX31865_conf->CS_GPIOPort;
-			handler->CS_GPIO_PIn = MAX31865_conf->CS_GPIO_PIn;
+			handler->CS_GPIOPort = CS_GPIOPort;
+			handler->CS_GPIO_PIn = CS_GPIO_PIn;
 			handler->PT100x_Parameters = MAX31865_conf->PT100x_Parameters;
 			handler->R_Ref = MAX31865_conf->R_Ref;
 
@@ -80,7 +78,7 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 	 return ( ((int16_t)(Degree + 256)*32)) & 0x7FFF;	//15 bits maximum
 }
 
- bool MAX31865_Init(MAX31865_handler h,const Configuration_Register_ts *Configuration_Register)
+ void MAX31865_Init(MAX31865_handler h,const Configuration_Register_ts *Configuration_Register)
 {
 	HAL_GPIO_WritePin(h->CS_GPIOPort, h->CS_GPIO_PIn, GPIO_PIN_RESET);
 	h->Max31865_registers.Configuration = *Configuration_Register;
@@ -104,13 +102,20 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 	_WriteRegisters(h,MAX31865_HIGH_FAULT_THRESHOLD_MSB,4);
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
 
-	return false;
 }
-//
 
-float MAX31865_GetTemperatureSingleShot(MAX31865_handler h,bool *FaultFlag)
+void MAX31865_Disable(MAX31865_handler h)
+{
+	h->Max31865_registers.Configuration.Vbias = 0;
+	h->Max31865_registers.Configuration.ConversionMode = 0;
+	h->Max31865_registers.Configuration.OneShot = 0;
+	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
+}
+
+float MAX31865_ReadTemperatureSingleShot(MAX31865_handler h,bool *FaultFlag)
 {
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
+	h->Max31865_registers.Configuration.Vbias = 1;
 	h->Max31865_registers.Configuration.ConversionMode = 0;
 	h->Max31865_registers.Configuration.OneShot = 1;
 	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
@@ -120,29 +125,26 @@ float MAX31865_GetTemperatureSingleShot(MAX31865_handler h,bool *FaultFlag)
 
 	_ReadRegisters(h, MAX31865_RTD_MSB, 2);
 	h->ADC_Value = h->Max31865_registers.RTD_MSB << 7 | h->Max31865_registers.RTD_LSB.LSB;
-	h->FaultFlag = h->Max31865_registers.RTD_LSB.Fault;
-	if(FaultFlag != NULL)	*FaultFlag = h->FaultFlag;
 
-	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value) ;
+	if(FaultFlag != NULL)	*FaultFlag =  h->Max31865_registers.RTD_LSB.Fault;
 
-	return h->Temperature;
+	return ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value) ;;
 }
 
-float MAX31865_GetTemperatureAuto(MAX31865_handler h,bool *FaultFlag)
+float MAX31865_ReadTemperatureAuto(MAX31865_handler h,bool *FaultFlag)
 {
 	_ReadRegisters(h, MAX31865_RTD_MSB, 2);
 	h->ADC_Value = h->Max31865_registers.RTD_MSB << 7 | h->Max31865_registers.RTD_LSB.LSB;
-	h->FaultFlag = h->Max31865_registers.RTD_LSB.Fault;
 
-	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value) ;
 
-	if(FaultFlag != NULL)	*FaultFlag = h->FaultFlag;
-	return h->Temperature;
+	if(FaultFlag != NULL)	*FaultFlag =  h->Max31865_registers.RTD_LSB.Fault;
+	return ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value) ;;
 }
 
 void MAX31865_AutomaticConversionMode(MAX31865_handler h, bool Enable)
 {
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
+	h->Max31865_registers.Configuration.Vbias = 1;
 	h->Max31865_registers.Configuration.ConversionMode = Enable;
 	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
 }
