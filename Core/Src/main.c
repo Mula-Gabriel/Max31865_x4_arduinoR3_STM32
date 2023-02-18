@@ -97,22 +97,30 @@ int main(void)
 
   MAX31865_Init_ts MAX31865_Init_struct =
   {
-			.Handler_Spi = &hspi1,
-			.CS_GPIOPort = CS1_GPIO_Port,
-			.CS_GPIO_PIn = CS1_Pin,
-			.PT100x_Parameters = {	.R0 = 100.0, .A= A_IEC751 , .B = B_IEC751} ,
-			.R_Ref = 400.0,
-			.HighTempthreshold = 30,
-			.LowTempthreshold = -10,
+	.Handler_Spi = &hspi1,
+	.CS_GPIOPort = CS1_GPIO_Port,
+	.CS_GPIO_PIn = CS1_Pin,
+	.PT100x_Parameters = {	.R0 = 100.0, .A= A_IEC751 , .B = B_IEC751} ,
+	.R_Ref = 400.0,
+	.HighTempthreshold = 30,
+	.LowTempthreshold = -10,
   };
 
-  MAX31865_handler MAX31865_1 = MAX31865_Create( &MAX31865_Init_struct );
+  MAX31865_handler MAX31865[4];
+
+  MAX31865[0] = MAX31865_Create( &MAX31865_Init_struct );
 
   MAX31865_Init_struct.CS_GPIOPort = CS2_GPIO_Port;
   MAX31865_Init_struct.CS_GPIO_PIn = CS2_Pin;
+  MAX31865[1]= MAX31865_Create( &MAX31865_Init_struct );
 
-  MAX31865_handler MAX31865_2 = MAX31865_Create( &MAX31865_Init_struct );
+  MAX31865_Init_struct.CS_GPIOPort = CS3_GPIO_Port;
+  MAX31865_Init_struct.CS_GPIO_PIn = CS3_Pin;
+  MAX31865[2] = MAX31865_Create( &MAX31865_Init_struct );
 
+  MAX31865_Init_struct.CS_GPIOPort = CS4_GPIO_Port;
+  MAX31865_Init_struct.CS_GPIO_PIn = CS4_Pin;
+  MAX31865[3] = MAX31865_Create( &MAX31865_Init_struct );
 
   Configuration_Register_ts MaxConf =
   {
@@ -125,12 +133,11 @@ int main(void)
   };
 
 
-
-  MAX31865_Init(MAX31865_1,&MaxConf);
-  MAX31865_Init(MAX31865_2,&MaxConf);
-  MAX31865_AutomaticConversionMode(MAX31865_1,true);
-
-
+  for(uint8_t i = 0; i < 4; i++)
+  {
+	  MAX31865_Init(MAX31865[i],&MaxConf);
+	  MAX31865_AutomaticConversionMode(MAX31865[i],true);
+  }
 
   /* USER CODE END 2 */
 
@@ -142,11 +149,34 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  float t[4] = {0};
-	  t[0] = MAX31865_GetTemperatureAuto(MAX31865_1);
-	  //t[1] = MAX31865_GetTemperatureSingleShot(MAX31865_2);
-	  printf("%.1f %f %f %f\n", t[0],t[1],t[2],t[3]);
+	  bool Fault[4] = {false};
+
+	  for(uint8_t i = 0; i < 4; i++)
+	  {
+		  t[i] = MAX31865_GetTemperatureAuto(MAX31865[i],&Fault[i]);
+		  printf("Ch%d=%.1f (Fault=%d) ",i+1,t[i],Fault[i]);
+
+		  if(Fault[i] == true)
+		  {
+			  Fault_Status_Register_ts Fsr = MAX31865_DoFaultDetectionCycle(MAX31865[i]);
+
+			  printf("VoltageFault=%d RTDinInfVbias=%d REFINInf085Vbias=%d REFINSup085Vbia=%d RTD_LowThreshold=%d RTD_HighThreshold=%d",
+					  Fsr.VoltageFault,Fsr.RTDinInfVbias,Fsr.REFINInf085Vbias,Fsr.REFINSup085Vbias,Fsr.RTD_LowThreshold,Fsr.RTD_HighThreshold);
+
+			  //Press button to clear error
+			  if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET )
+			  {
+				  MAX31865_ClearFault(MAX31865[i]);
+			  }
+		  }
+
+		  printf("\n");
+	  }
 
 	  HAL_Delay(100);
+
+
+	  printf("\r\n");
 
   }
   /* USER CODE END 3 */
@@ -199,6 +229,11 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
+
+
+
  int __io_putchar(int ch)
 {
 	 HAL_UART_Transmit(&huart2,(const uint8_t*) &ch,1,100);

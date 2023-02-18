@@ -100,15 +100,18 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 	}
 
 	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
+	//Write both threshold register
+	_WriteRegisters(h,MAX31865_HIGH_FAULT_THRESHOLD_MSB,4);
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
 
 	return false;
 }
 //
 
-float MAX31865_GetTemperatureSingleShot(MAX31865_handler h)
+float MAX31865_GetTemperatureSingleShot(MAX31865_handler h,bool *FaultFlag)
 {
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
+	h->Max31865_registers.Configuration.ConversionMode = 0;
 	h->Max31865_registers.Configuration.OneShot = 1;
 	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
 
@@ -118,20 +121,22 @@ float MAX31865_GetTemperatureSingleShot(MAX31865_handler h)
 	_ReadRegisters(h, MAX31865_RTD_MSB, 2);
 	h->ADC_Value = h->Max31865_registers.RTD_MSB << 7 | h->Max31865_registers.RTD_LSB.LSB;
 	h->FaultFlag = h->Max31865_registers.RTD_LSB.Fault;
+	if(FaultFlag != NULL)	*FaultFlag = h->FaultFlag;
 
-	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value);
+	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value) ;
 
 	return h->Temperature;
 }
 
-float MAX31865_GetTemperatureAuto(MAX31865_handler h)
+float MAX31865_GetTemperatureAuto(MAX31865_handler h,bool *FaultFlag)
 {
 	_ReadRegisters(h, MAX31865_RTD_MSB, 2);
 	h->ADC_Value = h->Max31865_registers.RTD_MSB << 7 | h->Max31865_registers.RTD_LSB.LSB;
 	h->FaultFlag = h->Max31865_registers.RTD_LSB.Fault;
 
-	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value);
+	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value) ;
 
+	if(FaultFlag != NULL)	*FaultFlag = h->FaultFlag;
 	return h->Temperature;
 }
 
@@ -140,15 +145,8 @@ void MAX31865_AutomaticConversionMode(MAX31865_handler h, bool Enable)
 	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
 	h->Max31865_registers.Configuration.ConversionMode = Enable;
 	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
-
-	if(Enable)   HAL_Delay(65);
-
 }
 
-bool MAX31865_GetFaultFlag(MAX31865_handler h)
-{
-	return h->FaultFlag;
-}
 
 void MAX31865_ClearFault(MAX31865_handler h)
 {
@@ -169,11 +167,11 @@ Fault_Status_Register_ts MAX31865_DoFaultDetectionCycle(MAX31865_handler h)
 
 	do
 	{
-		HAL_Delay(10);
+		HAL_Delay(1);
 		_ReadRegisters(h,MAX31865_CONFIG_REG , 1);
 	}while(h->Max31865_registers.Configuration.Fault_Detection_Cycle_Control == Fault_Detection_Status_AutoFaultRunning);
 
-	return h->Max31865_registers.Fault_Status_Register;
+	return MAX31865_GetFaultRegister(h);
 }
 
 

@@ -57,9 +57,8 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf);
 bool MAX31865_Init(MAX31865_handler Max31865_handler,const Configuration_Register_ts *Configuration_Register);
 
 //took
-float MAX31865_GetTemperatureSingleShot(MAX31865_handler Max31865_handler);
-float MAX31865_GetTemperatureAuto(MAX31865_handler Max31865_handler);
-bool MAX31865_GetFaultFlag(MAX31865_handler Max31865_handler);
+float MAX31865_GetTemperatureSingleShot(MAX31865_handler Max31865_handler,bool *FaultFlag);
+float MAX31865_GetTemperatureAuto(MAX31865_handler Max31865_handler,bool *FaultFlag);
 void MAX31865_ClearFault(MAX31865_handler Max31865_handler);
 void MAX31865_AutomaticConversionMode(MAX31865_handler Max31865_handler, bool Enable);
 Fault_Status_Register_ts MAX31865_DoFaultDetectionCycle(MAX31865_handler Max31865_handler);
