@@ -102,7 +102,7 @@ int main(void)
 			.CS_GPIO_PIn = CS1_Pin,
 			.PT100x_Parameters = {	.R0 = 100.0, .A= A_IEC751 , .B = B_IEC751} ,
 			.R_Ref = 400.0,
-			.HighTempthreshold = 25,
+			.HighTempthreshold = 30,
 			.LowTempthreshold = -10,
   };
 
@@ -128,7 +128,7 @@ int main(void)
 
   MAX31865_Init(MAX31865_1,&MaxConf);
   MAX31865_Init(MAX31865_2,&MaxConf);
-
+  MAX31865_AutomaticConversionMode(MAX31865_1,true);
 
 
 
@@ -142,11 +142,11 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  float t[4] = {0};
-	  t[0] = MAX31865_GetTemperatureSingleShot(MAX31865_1);
-	  t[1] = MAX31865_GetTemperatureSingleShot(MAX31865_2);
-	  printf("%f %f %f %f\n", t[0],t[1],t[2],t[3]);
+	  t[0] = MAX31865_GetTemperatureAuto(MAX31865_1);
+	  //t[1] = MAX31865_GetTemperatureSingleShot(MAX31865_2);
+	  printf("%.1f %f %f %f\n", t[0],t[1],t[2],t[3]);
 
-	  //HAL_Delay(100);
+	  HAL_Delay(100);
 
   }
   /* USER CODE END 3 */

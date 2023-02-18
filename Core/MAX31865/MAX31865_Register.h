@@ -123,13 +123,13 @@ typedef struct __attribute__((packed)) Fault_Status_Register_s
 
 }Fault_Status_Register_ts;
 
-#define MAX31865_REG_COUNG 8
+#define MAX31865_REG_COUNT 8
 
 typedef struct __attribute__((packed)) Max31865_registers_s
 {
 	union
 	{
-		uint8_t asU8Array[MAX31865_REG_COUNG];
+		uint8_t asU8Array[MAX31865_REG_COUNT];
 		struct
 		{
 			Configuration_Register_ts Configuration;

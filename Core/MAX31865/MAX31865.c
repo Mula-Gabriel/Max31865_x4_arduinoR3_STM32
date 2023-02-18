@@ -100,7 +100,7 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 	}
 
 	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
-	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNG);
+	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
 
 	return false;
 }
@@ -108,7 +108,7 @@ MAX31865_handler MAX31865_Create(const MAX31865_Init_ts * MAX31865_conf)
 
 float MAX31865_GetTemperatureSingleShot(MAX31865_handler h)
 {
-	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNG);
+	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
 	h->Max31865_registers.Configuration.OneShot = 1;
 	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
 
@@ -121,31 +121,65 @@ float MAX31865_GetTemperatureSingleShot(MAX31865_handler h)
 
 	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value);
 
-
 	return h->Temperature;
 }
 
-float MAX31865_ClearError(MAX31865_handler h)
+float MAX31865_GetTemperatureAuto(MAX31865_handler h)
 {
-	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNG);
-	h->Max31865_registers.Configuration.OneShot = 1;
-	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
-
-	uint32_t Delayms = h->Max31865_registers.Configuration.Filter_Select == 0 ? 55 : 66;
-	HAL_Delay(Delayms);
-
 	_ReadRegisters(h, MAX31865_RTD_MSB, 2);
 	h->ADC_Value = h->Max31865_registers.RTD_MSB << 7 | h->Max31865_registers.RTD_LSB.LSB;
 	h->FaultFlag = h->Max31865_registers.RTD_LSB.Fault;
+
 	h->Temperature = ConvertADCToDegreeCelcius(&h->PT100x_Parameters,h->R_Ref,h->ADC_Value);
+
 	return h->Temperature;
 }
 
+void MAX31865_AutomaticConversionMode(MAX31865_handler h, bool Enable)
+{
+	_ReadRegisters(h,MAX31865_CONFIG_REG, MAX31865_REG_COUNT);
+	h->Max31865_registers.Configuration.ConversionMode = Enable;
+	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
+
+	if(Enable)   HAL_Delay(65);
+
+}
+
+bool MAX31865_GetFaultFlag(MAX31865_handler h)
+{
+	return h->FaultFlag;
+}
+
+void MAX31865_ClearFault(MAX31865_handler h)
+{
+	h->Max31865_registers.Configuration.FaultStatusCLear = 1;
+	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
+}
+
+Fault_Status_Register_ts MAX31865_GetFaultRegister(MAX31865_handler h)
+{
+	_ReadRegisters(h,MAX31865_FAULT_STATUS, 1);
+	return h->Max31865_registers.Fault_Status_Register;
+}
+
+Fault_Status_Register_ts MAX31865_DoFaultDetectionCycle(MAX31865_handler h)
+{
+	h->Max31865_registers.Configuration.Fault_Detection_Cycle_Control = Fault_Detection_Ctl_Auto;
+	_WriteRegisters(h,MAX31865_CONFIG_REG,1);
+
+	do
+	{
+		HAL_Delay(10);
+		_ReadRegisters(h,MAX31865_CONFIG_REG , 1);
+	}while(h->Max31865_registers.Configuration.Fault_Detection_Cycle_Control == Fault_Detection_Status_AutoFaultRunning);
+
+	return h->Max31865_registers.Fault_Status_Register;
+}
 
 
  void _ReadRegisters(MAX31865_handler h, uint8_t RegAddr, uint8_t num)
 {
-	if(RegAddr + num > MAX31865_REG_COUNG ) { num = MAX31865_REG_COUNG - RegAddr; }
+	if(RegAddr + num > MAX31865_REG_COUNT ) { num = MAX31865_REG_COUNT - RegAddr; }
 
 	RegAddr |= MAX31865_READ_MASK;
 	uint8_t *Rptr = &h->Max31865_registers.asU8Array[RegAddr];
@@ -157,7 +191,7 @@ float MAX31865_ClearError(MAX31865_handler h)
 
  void _WriteRegisters(MAX31865_handler h, uint8_t RegAddr, uint8_t num)
 {
-	if(RegAddr + num > MAX31865_REG_COUNG ) { num = MAX31865_REG_COUNG - RegAddr; }
+	if(RegAddr + num > MAX31865_REG_COUNT ) { num = MAX31865_REG_COUNT - RegAddr; }
 
 	uint8_t *Wptr = &h->Max31865_registers.asU8Array[RegAddr];
 	RegAddr |= MAX31865_WRITE_MASK;
